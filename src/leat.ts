@@ -17,15 +17,20 @@ export const LeatContext: React.Context<LeatContextType> =
   React.createContext<LeatContextType>({ addScript });
 
 export const LeatProvider = ({ children }: { children: React.ReactNode }) => {
-  return React.createElement(LeatContext.Provider, null, children);
+  return React.createElement(
+    LeatContext.Provider,
+    { value: { addScript } },
+    children
+  );
 };
 
 const encodeProps = (data: Record<string, any>): string => {
-  if (data instanceof HTMLElement) {
-    const className = 'test-123';
-    data.classList.add(className);
-    return `document.getElementsByClassName(${className})[0]`;
-  } else if (typeof data !== 'object') {
+  // if (data instanceof HTMLElement) {
+  //   const className = 'test-123';
+  //   data.classList.add(className);
+  //   return `document.getElementsByClassName(${className})[0]`;
+  // }
+  if (typeof data !== 'object') {
     return data;
   }
   const encoded = Object.entries(data)
@@ -44,10 +49,9 @@ export const useClientSideScript = <T extends ClientScriptFunction>(
 ) => {
   const { addScript } = React.useContext(LeatContext);
 
-  let stringified = func.toString();
-  if (props) {
-    stringified = `(${stringified})(${encodeProps(props)})`;
-  }
+  const stringified = `(${func.toString()})(${
+    props ? encodeProps(props) : ''
+  });`;
   addScript(stringified);
 
   return stringified;
