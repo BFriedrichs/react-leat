@@ -39,5 +39,15 @@
   },
   "engines": {
     "node": ">= 12"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/BFriedrichs/react-leat.git"
+  },
+  "keywords": [
+    "react-leat",
+    "react",
+    "hydrate",
+    "ssr"
+  ]
 }
