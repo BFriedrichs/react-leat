@@ -1,7 +1,7 @@
 {
   "name": "react-leat",
   "author": "Björn Friedrichs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "source": "src/main.ts",
   "main": "dist/main.js",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "parcel watch",
     "build": "parcel build",
-    "test": "NODE_ENV=test jest"
+    "test": "NODE_ENV=test jest",
+    "prepublish": "yarn build"
   },
   "devDependencies": {
     "@babel/core": "^7.19.0",
