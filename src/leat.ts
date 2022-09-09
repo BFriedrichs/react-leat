@@ -6,7 +6,9 @@ type LeatContextType = {
 
 const scripts: string[] = [];
 const addScript = (script: string) => {
-  scripts.push(script);
+  if (!scripts.includes(script)) {
+    scripts.push(script);
+  }
 };
 
 export const getClientScript = () => {
@@ -48,11 +50,8 @@ export const useClientSideScript = <T extends ClientScriptFunction>(
   props: Parameters<T>[0]
 ) => {
   const { addScript } = React.useContext(LeatContext);
-
   const stringified = `(${func.toString()})(${
     props ? encodeProps(props) : ''
   });`;
   addScript(stringified);
-
-  return stringified;
 };
