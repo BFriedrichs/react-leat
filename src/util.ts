@@ -7,3 +7,15 @@ export const addToSet = (list: string[], item: string | string[]) => {
     list.push(item);
   }
 };
+
+export const encodeProps = (data: Record<string, any>): string => {
+  if (typeof data !== 'object') {
+    return data;
+  }
+  const encoded = Object.entries(data)
+    .map(([key, value]) => {
+      return `'${key}':${encodeProps(value)}`;
+    })
+    .join(',');
+  return `{${encoded}}`;
+};

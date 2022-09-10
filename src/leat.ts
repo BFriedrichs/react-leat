@@ -1,57 +1,122 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { encodeProps } from './util';
+
+const LEAT_SELECTOR = 'data-leat-element';
+
+type Script = {
+  func: Function;
+  refs: string[];
+  props?: Record<string, any>;
+};
+
+type HydrationProps = { [key: `data-leat-element-${string}`]: string };
+
+type ScriptUpdater = {
+  addRef: (refName: string) => HydrationProps;
+};
 
 type LeatContextType = {
-  addScript: (script: string) => void;
+  addScript: (func: Function, props?: Record<string, any>) => ScriptUpdater;
 };
 
-const scripts: string[] = [];
-const addScript = (script: string) => {
-  if (!scripts.includes(script)) {
-    scripts.push(script);
+let context: React.Context<LeatContextType> | null = null;
+export class ServerScriptRenderer {
+  private scripts: Script[];
+  private addScript: (
+    func: Function,
+    props?: Record<string, any>
+  ) => ScriptUpdater;
+
+  constructor() {
+    this.scripts = [];
+
+    this.addScript = this._addScript.bind(this);
   }
-};
 
-export const getClientScript = () => {
-  return scripts.join('\n\n');
-};
+  private _addScript(func: Function, props?: Record<string, any>) {
+    const script: Script = { func, props, refs: [] };
+    this.scripts.push(script);
 
-export const LeatContext: React.Context<LeatContextType> =
-  React.createContext<LeatContextType>({ addScript });
+    const addRef = (refName: string): ReturnType<ScriptUpdater['addRef']> => {
+      script.refs.push(refName);
+      const elementAttribute = `${LEAT_SELECTOR}-${this.scripts.length - 1}`;
 
-export const LeatProvider = ({ children }: { children: React.ReactNode }) => {
-  return React.createElement(
-    LeatContext.Provider,
-    { value: { addScript } },
-    children
-  );
-};
+      return { [elementAttribute]: refName };
+    };
 
-const encodeProps = (data: Record<string, any>): string => {
-  // if (data instanceof HTMLElement) {
-  //   const className = 'test-123';
-  //   data.classList.add(className);
-  //   return `document.getElementsByClassName(${className})[0]`;
-  // }
-  if (typeof data !== 'object') {
-    return data;
+    return {
+      addRef,
+    };
   }
-  const encoded = Object.entries(data)
-    .map(([key, value]) => {
-      return `${key}:${encodeProps(value)}`;
-    })
-    .join(',');
-  return `{${encoded}}`;
-};
 
-type ClientScriptFunction = (props?: Record<string, any>) => void;
+  collectScripts(node: React.ReactNode): React.ReactNode {
+    const contextValue = {
+      addScript: this.addScript,
+    };
+    context = React.createContext<LeatContextType>(contextValue);
 
-export const useClientSideScript = <T extends ClientScriptFunction>(
-  func: T,
-  props: Parameters<T>[0]
+    return React.createElement(context.Provider, {
+      value: contextValue,
+      children: node,
+    });
+  }
+
+  getScripts(): string[] {
+    return this.scripts.map((script) => {
+      const { props = {}, refs } = script;
+      const scriptProps = {
+        ...props,
+      };
+
+      refs.forEach((ref, i) => {
+        scriptProps[
+          ref
+        ] = `document.querySelector('[${LEAT_SELECTOR}-${i}="${ref}"]')`;
+      });
+
+      const scriptData = `(${script.func.toString()})(${encodeProps(
+        scriptProps
+      )});`;
+
+      return scriptData;
+    });
+  }
+
+  getScriptTag() {
+    return `<script>${this.getScripts().join('\n\n')}</script>`;
+  }
+}
+
+export const useClientSideScript = (
+  func: Function,
+  props: Record<string, any>
 ) => {
-  const { addScript } = React.useContext(LeatContext);
-  const stringified = `(${func.toString()})(${
-    props ? encodeProps(props) : ''
-  });`;
-  addScript(stringified);
+  if (!context) {
+    return {
+      addRef: (refName: string) => ({ [LEAT_SELECTOR]: refName }),
+    };
+  }
+  const { addScript } = React.useContext(context);
+  const [scriptMods] = useState(() => {
+    const scriptMods = addScript(func, props);
+
+    return scriptMods;
+  });
+
+  return scriptMods;
+};
+
+type LeatProps = {
+  children: (hydrationProps: ScriptUpdater) => React.ReactNode;
+  script: (props: Record<string, any> & { element: HTMLElement }) => void;
+  props?: Record<string, any>;
+};
+
+export const Leat = ({ children, script, props = {} }: LeatProps) => {
+  const scriptUpdater = useClientSideScript(script, {
+    ...props,
+  });
+
+  if (!children) return;
+  return children(scriptUpdater);
 };
