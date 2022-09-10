@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { encodeProps } from './util';
+import { verify } from './verify';
 
 const LEAT_SELECTOR = 'data-leat-element';
 
@@ -35,11 +36,12 @@ export class ServerScriptRenderer {
 
   private _addScript(func: Function, props?: Record<string, any>) {
     const script: Script = { func, props, refs: [] };
+    const currentIndex = this.scripts.length;
     this.scripts.push(script);
 
     const addRef = (refName: string): ReturnType<ScriptUpdater['addRef']> => {
       script.refs.push(refName);
-      const elementAttribute = `${LEAT_SELECTOR}-${this.scripts.length - 1}`;
+      const elementAttribute = `${LEAT_SELECTOR}-${currentIndex}`;
 
       return { [elementAttribute]: refName };
     };
@@ -62,19 +64,20 @@ export class ServerScriptRenderer {
   }
 
   getScripts(): string[] {
-    return this.scripts.map((script) => {
+    return this.scripts.map((script, i) => {
       const { props = {}, refs } = script;
       const scriptProps = {
         ...props,
       };
 
-      refs.forEach((ref, i) => {
+      refs.forEach((ref) => {
         scriptProps[
           ref
         ] = `document.querySelector('[${LEAT_SELECTOR}-${i}="${ref}"]')`;
       });
 
-      const scriptData = `(${script.func.toString()})(${encodeProps(
+      // eslint-disable-next-line @typescript-eslint/no-inferrable-types
+      const scriptData: string = `(${script.func.toString()})(${encodeProps(
         scriptProps
       )});`;
 
@@ -96,6 +99,8 @@ export const useClientSideScript = (
       addRef: (refName: string) => ({ [LEAT_SELECTOR]: refName }),
     };
   }
+  verify(func);
+
   const { addScript } = React.useContext(context);
   const [scriptMods] = useState(() => {
     const scriptMods = addScript(func, props);

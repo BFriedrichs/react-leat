@@ -3,6 +3,7 @@ import * as esprima from 'esprima';
 import {
   ClassDeclaration,
   FunctionDeclaration,
+  Identifier,
   LabeledStatement,
   Node,
   VariableDeclarator,
@@ -60,8 +61,20 @@ export const gatherScopeFromNode = (
       | FunctionDeclaration
       | VariableDeclarator
       | LabeledStatement
+      | Identifier
   ) => {
-    const id = node.type === 'LabeledStatement' ? node.label : node.id;
+    let id: Node | null = null;
+    switch (node.type) {
+      case 'LabeledStatement':
+        id = node.label;
+        break;
+      case 'Identifier':
+        id = node;
+        break;
+      default:
+        id = node.id;
+    }
+
     if (id && id.type === 'Identifier') {
       addToSet(currentScope.localDeclarations, id.name);
     }
@@ -80,18 +93,26 @@ export const gatherScopeFromNode = (
 
     addToSet(currentScope.outOfScope, scope.outOfScope);
     currentScope.hasReturn = currentScope.hasReturn || scope.hasReturn;
-
     if (
       (nextNode &&
         !Array.isArray(nextNode) &&
         [
           'ClassDeclaration',
           'FunctionDeclaration',
+          'FunctionExpression',
+          'ArrowFunctionExpression',
           'VariableDeclarator',
           'LabeledStatement',
           'Identifier',
+          'Property',
         ].includes(nextNode.type)) ||
-      (node && !Array.isArray(node) && node.type === 'VariableDeclaration')
+      (node &&
+        !Array.isArray(node) &&
+        ['VariableDeclaration'].includes(node.type)) ||
+      (node &&
+        'type' in node &&
+        Array.isArray(nextNode) &&
+        ['ArrowFunctionExpression', 'ObjectPattern'].includes(node.type))
     ) {
       addToSet(currentScope.localDeclarations, scope.localDeclarations);
     }
@@ -131,14 +152,27 @@ export const gatherScopeFromNode = (
         visitNode(node.properties);
         break;
       case 'Property':
+        if (node.key.type === 'Identifier') {
+          addId(node.key);
+        }
         visitNode(node.key);
         visitNode(node.value);
         break;
       case 'FunctionExpression':
+        node.params.forEach((p) => {
+          if (p.type === 'Identifier') {
+            addId(p);
+          }
+        });
         visitNode(node.params);
         visitNode(node.body);
         break;
       case 'ArrowFunctionExpression':
+        node.params.forEach((p) => {
+          if (p.type === 'Identifier') {
+            addId(p);
+          }
+        });
         visitNode(node.params);
         visitNode(node.body);
         break;
@@ -235,6 +269,11 @@ export const gatherScopeFromNode = (
         break;
       case 'FunctionDeclaration':
         addId(node);
+        node.params.forEach((p) => {
+          if (p.type === 'Identifier') {
+            addId(p);
+          }
+        });
         visitNode(node.params);
         currentIteration.isRootFunction = false;
         visitNode(node.body, { ...currentIteration, isRootFunction: false });

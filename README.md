@@ -23,56 +23,66 @@ By utilising the `<Leat>` element hydrations can be directly included in your co
 
 ```js
 import { Leat } from 'react-leat';
+```
 
+```js
 const logSearchParameter = () => {
   console.log(window.location.search);
 }
 
-export const App = () => {
-  return <div>
-    <Leat script={logSearchParameter}/>
-  </div>
-}
+return <div>
+  <Leat script={logSearchParameter}/>
+</div>
 ```
 
-Props have to be added manually since scope cannot be resolved manually. 
+Props have to be added manually since scope cannot be resolved from outside the function.
 ```js
-import { Leat } from 'react-leat';
-
 const logTest = ({ test }) => {
   console.log(test);
 }
 
-export const App = () => {
-  const test = 1;
-  return <div>
-    <Leat
-      script={logSearchParameter}
-      props={{ test }}
-    />
-  </div>
+const test = 1;
+return <div>
+  <Leat
+    script={logSearchParameter}
+    props={{ test }}
+  />
+</div>
+```
+
+Props can also be React elements, these will be rendered via a hidden DOM element and are available as a regular `HTMLElement` once the function runs.
+```js
+const logTest = ({ element }) => {
+  document.body.appendChild(element);
 }
+
+return <div>
+  <Leat
+    script={attachElement}
+    props={{
+      element: (
+        <div>Hello!</div>
+      )
+    }}
+  />
+</div>
 ```
 
 A children function can be supplied which offers `addRef` to references the DOM as HTMLElements.
 ```js
-import { Leat } from 'react-leat';
-
 const logChange = ({ element }) => {
   element.addEventListener('change', (event) => {
     console.log(event.target.value);
   });
 }
 
-export const App = () => {
-  return <Leat
-    script={logChange}
-  >
-    ({ addRef }) => (
-      <input {...addRef('element')} />
-    )
-  </Leat>;
-}
+return <Leat
+  script={logChange}
+>
+  {({ addRef }) => (
+    <input {...addRef('element')} />
+  )}
+</Leat>;
 ```
 
 <br />
@@ -97,34 +107,30 @@ You can also inject scripts programmatically via the `useClientSideScript` hook.
 
 ```js
 import { useClientSideScript } from 'react-leat';
+```
 
+```js
 const logSearchParameter = () => {
   console.log(window.location.search);
 }
 
-export const App = () => {
-  const useClientSideScript(logSearchParameter)
+const useClientSideScript(logSearchParameter)
 
-  return <div></div>;
-}
+return <div></div>;
 ```
 
 or with an element
 
 ```js
-import { useClientSideScript } from 'react-leat';
-
 const logChange = ({ inputElem }) => {
   inputElem.addEventListener('change', (event) => {
     console.log(event.target.value);
   });
 }
 
-export const App = () => {
-  const { addRef } = useClientSideScript(logSearchParameter)
+const { addRef } = useClientSideScript(logSearchParameter)
 
-  return <input {...addRef('inputElem')} />;
-}
+return <input {...addRef('inputElem')} />;
 ```
 
 ### Docs

@@ -17,7 +17,7 @@ export const verify = (
 
   let outOfScope = [...scope.outOfScope];
   if (options.allowGlobals) {
-    outOfScope = outOfScope.filter((v) => !(v in globalThis));
+    outOfScope = outOfScope.filter((v) => !(v in { ...globalThis, window: 1 }));
   }
 
   if (!scope.contained && outOfScope.length > 0) {

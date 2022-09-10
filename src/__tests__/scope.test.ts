@@ -19,6 +19,22 @@ describe('verify scope', () => {
     expect(() => verify(testFunction)).not.toThrowError();
   });
 
+  test('function param is valid', () => {
+    const testFunction = (a: number) => {
+      a;
+    };
+
+    expect(() => verify(testFunction)).not.toThrowError();
+  });
+
+  test('function param extraction is valid', () => {
+    const testFunction = ({ b }: { b: number }) => {
+      b;
+    };
+
+    expect(() => verify(testFunction)).not.toThrowError();
+  });
+
   test('local nested var is valid', () => {
     const testFunction = () => {
       const x = 3;
