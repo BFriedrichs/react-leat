@@ -9,9 +9,3 @@ export const addToSet = (list: string[], item: string | string[]) => {
     list.push(item);
   }
 };
-
-type LeatWindow = Window & {
-  __leat?: {
-    hydrated?: Record<number, boolean>;
-  };
-};
