@@ -30,9 +30,10 @@ export const verify = (
     );
   }
 
-  if (scope.hasReturn) {
-    console.warn(
-      'A return value for the script function is useless as it will be executed in global context.'
-    );
-  }
+  // TODO: Fix issue with return in props reporting here
+  // if (scope.hasReturn) {
+  //   console.warn(
+  //     'A return value for the script function is useless as it will be executed in global context.'
+  //   );
+  // }
 };

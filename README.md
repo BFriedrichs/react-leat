@@ -16,9 +16,9 @@ npm install react-leat
 yarn add react-leat
 ```
 
-## Usage
+<br/>
 
-### \<Leat\> Element
+## \<Leat\> Element
 By utilising the `<Leat>` element hydrations can be directly included in your code.
 
 ```js
@@ -52,8 +52,8 @@ return <div>
 
 Props can also be React elements, these will be rendered via a hidden DOM element and are available as a regular `HTMLElement` once the function runs.
 ```js
-const logTest = ({ element }) => {
-  document.body.appendChild(element);
+const logTest = ({ getRef }) => {
+  document.body.appendChild(getRef('element'));
 }
 
 return <div>
@@ -68,16 +68,28 @@ return <div>
 </div>
 ```
 
-A children function can be supplied which offers `addRef` to references the DOM as HTMLElements.
+A children or prop function can be supplied which offers `addRef` to references the DOM as HTMLElements. These can then be retrieved using the special parameter `getRef`.
 ```js
-const logChange = ({ element }) => {
-  element.addEventListener('change', (event) => {
+const logChange = ({ getRef }) => {
+  // A child can be accessed directly
+  getRef('element').addEventListener('change', (event) => {
     console.log(event.target.value);
+  });
+
+  // References to elements in prop elements can be accessed after they are added to the dom.
+  document.body.appendChild(getRef('propElement'));
+  getRef('button').addEventListener('click', (event) => {
+    console.log('clicked');
   });
 }
 
 return <Leat
   script={logChange}
+  props={{
+    propElement: ({ addRef }) => (
+      <button {...addRef('button')}>Hello!</button>
+    )
+  }}
 >
   {({ addRef }) => (
     <input {...addRef('element')} />
@@ -87,13 +99,19 @@ return <Leat
 
 <br />
 
-### Docs
+### Docs: Leat
 
 | Props          | Type      | Description |
 | :-------------- | :-------- | :-- |
 | `script`| `Function` | Any function. Warning! The scope has to be contained to itself. |
-| `props` optional     | `Record<string, any>` | Any props to make available in the function itself. Has to be JSON encodable. |
-| `children` optional   | `(hydrationProps: HydrationProps) => ReactNode` | A function which takes `HydrationProps` and return other JSX elements. |
+| `props` optional     | `Record<string, any>` | Any props to make available in the function itself. Has to be JSON encodable. If the prop is a function it will automatically be invoked with a `Script` object. |
+| `children` optional   | `(script: Script) => ReactNode` | A function which takes a `Script` and return other JSX elements. |
+
+
+### Docs: Script
+| Props          | Type      | Description |
+| :-------------- | :-------- | :-- |
+| `addRef`| `(refName: string) => HydrationProps` | Adds the name to the reference pool and adds arguments which need to be added to the object. |
 
 
 <br />
@@ -102,7 +120,7 @@ return <Leat
 
 <br />
 
-### useClientSideScript
+## useClientSideScript
 You can also inject scripts programmatically via the `useClientSideScript` hook.
 
 ```js
@@ -122,8 +140,8 @@ return <div></div>;
 or with an element
 
 ```js
-const logChange = ({ inputElem }) => {
-  inputElem.addEventListener('change', (event) => {
+const logChange = ({ getRef }) => {
+  getRef('inputElem').addEventListener('change', (event) => {
     console.log(event.target.value);
   });
 }
@@ -133,7 +151,7 @@ const { addRef } = useClientSideScript(logSearchParameter)
 return <input {...addRef('inputElem')} />;
 ```
 
-### Docs
+### Docs: useClientScript
 
 ```js
 useClientSideScript(script: Function, props?: Record<string, any>)
@@ -161,7 +179,7 @@ import { ServerScriptRenderer } from 'react-leat';
 
 import { App } from 'client/dist/index.js'; // After some build step
 
-const leat = new ServerScriptRenderer()
+const leat = new ServerScriptRenderer({ minify: true })
 
 const renderedApp = ReactDOM.renderToString(leat.collectScripts(App));
 const scriptTag = leat.getScriptTag();
@@ -174,9 +192,49 @@ const index = `<html>
 </html>`;
 ```
 
-### Docs
+### Docs: ServerScriptRenderer
+
+| Options          | Type      | Description |
+| :-------------- | :-------- | :-- |
+| `minify` default=true | `boolean` | Minify scripts using [UglifyJS](https://www.npmjs.com/package/uglify-js). |
+
+<br />
+
 | Member          | Type      | Description |
 | :-------------- | :-------- | :-- |
 | `collectScripts`| `(node: React.Node) => React.Node` | Gathers all scripts during the render step. |
 | `getScripts`    | `() => string[]` | Returns a list of IIFEs with all props encoded in it's parameter. |
 | `getScriptTag`  | `() => string` | Returns all scripts inside a `<script>` tag which can immediately be injected into a HTML response. |
+
+<br />
+
+---
+
+<br />
+
+## Other examples
+
+To disable a script running if you (sometimes) run hydration anyway just set a window variable after hydration and check for it in your supplied scripts where applicable.
+```js
+// index.js
+ReactDOM.hydrateRoot(container, <App />)
+
+window.appIsHydrated = true;
+
+// App.js
+const logChange = ({ getRef }) => {
+  getRef('element').addEventListener('change', (event) => {
+    if (window.appIsHydrated) return;
+    console.log(event.target.value);
+  });
+}
+
+return <Leat
+  script={logChange}
+>
+  {({ addRef }) => (
+    <input {...addRef('element')} />
+  )}
+</Leat>;
+
+```

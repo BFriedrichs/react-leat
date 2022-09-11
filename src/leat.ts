@@ -1,54 +1,82 @@
 import React, { useState } from 'react';
-import { encodeProps } from './util';
+import ReactDOM from 'react-dom/server';
+import UglifyJS from 'uglify-js';
+import { Script, ScriptProps, ScriptOptions } from './script';
+
 import { verify } from './verify';
-
-const LEAT_SELECTOR = 'data-leat-element';
-
-type Script = {
-  func: Function;
-  refs: string[];
-  props?: Record<string, any>;
-};
-
-type HydrationProps = { [key: `data-leat-element-${string}`]: string };
-
-type ScriptUpdater = {
-  addRef: (refName: string) => HydrationProps;
-};
+import { LEAT_SELECTOR } from './util';
 
 type LeatContextType = {
-  addScript: (func: Function, props?: Record<string, any>) => ScriptUpdater;
+  addScript: (
+    func: Script['func'],
+    props?: Script['props'],
+    options?: Partial<Script['options']>
+  ) => Script;
 };
 
 let context: React.Context<LeatContextType> | null = null;
+
+type ServerOptions = {
+  minify: boolean;
+};
 export class ServerScriptRenderer {
+  private options: ServerOptions;
   private scripts: Script[];
-  private addScript: (
-    func: Function,
-    props?: Record<string, any>
-  ) => ScriptUpdater;
 
-  constructor() {
+  constructor(propOptions: Partial<ServerOptions> = {}) {
+    this.options = {
+      minify: true,
+      ...propOptions,
+    };
     this.scripts = [];
-
-    this.addScript = this._addScript.bind(this);
+    this.addScript = this.addScript.bind(this);
+    this.encodeProps = this.encodeProps.bind(this);
   }
 
-  private _addScript(func: Function, props?: Record<string, any>) {
-    const script: Script = { func, props, refs: [] };
+  private encodeProps(
+    data: any,
+    callback?: (data: { type: string; data: string }) => void
+  ): string {
+    if (typeof data !== 'object') {
+      return data;
+    }
+
+    if (data.$$typeof && data.$$typeof.toString() === 'Symbol(react.element)') {
+      const leat = new ServerScriptRenderer(this.options);
+      const rendered = ReactDOM.renderToString(
+        leat.collectScripts(data) as React.ReactElement<
+          any,
+          string | React.JSXElementConstructor<any>
+        >
+      );
+      const innerScript = leat.getScripts();
+      if (innerScript.length > 0) {
+        callback && callback({ type: 'script', data: innerScript.join('\n') });
+      }
+      return `(() => {const dummy = document.createElement('div');dummy.innerHTML='${rendered.replace(
+        /"/g,
+        '\\"'
+      )}';return dummy.childNodes[0];})()`;
+    }
+
+    const encoded = Object.entries(data)
+      .map(([key, value]) => {
+        return `'${key}':${this.encodeProps(value, callback)}`;
+      })
+      .join(',');
+    return `{${encoded}}`;
+  }
+
+  private addScript(
+    func: Function,
+    props: ScriptProps = {},
+    options: Partial<ScriptOptions> = {}
+  ) {
     const currentIndex = this.scripts.length;
+    const script = new Script(currentIndex, func, props, options);
     this.scripts.push(script);
 
-    const addRef = (refName: string): ReturnType<ScriptUpdater['addRef']> => {
-      script.refs.push(refName);
-      const elementAttribute = `${LEAT_SELECTOR}-${currentIndex}`;
-
-      return { [elementAttribute]: refName };
-    };
-
-    return {
-      addRef,
-    };
+    return script;
   }
 
   collectScripts(node: React.ReactNode): React.ReactNode {
@@ -64,25 +92,53 @@ export class ServerScriptRenderer {
   }
 
   getScripts(): string[] {
-    return this.scripts.map((script, i) => {
-      const { props = {}, refs } = script;
-      const scriptProps = {
-        ...props,
-      };
+    const { minify } = this.options;
 
-      refs.forEach((ref) => {
-        scriptProps[
-          ref
-        ] = `document.querySelector('[${LEAT_SELECTOR}-${i}="${ref}"]')`;
-      });
+    const extractedScripts: string[] = [];
+    const addExtractedScript = (cbData: { type: string; data: string }) => {
+      if (cbData.type === 'script') {
+        extractedScripts.push(cbData.data);
+      }
+    };
 
-      // eslint-disable-next-line @typescript-eslint/no-inferrable-types
-      const scriptData: string = `(${script.func.toString()})(${encodeProps(
-        scriptProps
-      )});`;
+    const mappedScripts = this.scripts.map((script, i) => {
+      const { props, options } = script;
 
-      return scriptData;
+      let scriptProps: ScriptProps = Object.fromEntries(
+        Object.entries(props).map(([k, v]) => {
+          if (typeof v === 'function') {
+            v = v(script);
+          }
+          return [k, v];
+        })
+      );
+
+      if (!options.autoLoadProps) {
+        scriptProps = {
+          loadProps: `() => (${this.encodeProps(
+            scriptProps,
+            addExtractedScript
+          )})`,
+        };
+      }
+
+      scriptProps['getRef'] = `(refName) =>
+        document.querySelector('[${LEAT_SELECTOR}-${i}="'+refName+'"]')`;
+      scriptProps['isHydrated'] = `() => window.__leat?.hydrated[${i}]`;
+
+      const encodedProps = this.encodeProps(scriptProps, addExtractedScript);
+      const scriptString = script.func.toString().trim();
+      const scriptData = `(${scriptString})(${encodedProps});`;
+
+      return minify ? UglifyJS.minify(scriptData).code : scriptData;
     });
+
+    if (extractedScripts.length > 0) {
+      const extracted = extractedScripts.join('\n');
+      mappedScripts.push(minify ? UglifyJS.minify(extracted).code : extracted);
+    }
+
+    return mappedScripts;
   }
 
   getScriptTag() {
@@ -90,20 +146,22 @@ export class ServerScriptRenderer {
   }
 }
 
+const nonContextScripts: Script[] = [];
 export const useClientSideScript = (
   func: Function,
-  props: Record<string, any>
+  props?: ScriptProps,
+  options?: Partial<ScriptOptions>
 ) => {
   if (!context) {
-    return {
-      addRef: (refName: string) => ({ [LEAT_SELECTOR]: refName }),
-    };
+    const script = new Script(nonContextScripts.length, () => null, {});
+    nonContextScripts.push(script);
+    return script;
   }
   verify(func);
 
   const { addScript } = React.useContext(context);
   const [scriptMods] = useState(() => {
-    const scriptMods = addScript(func, props);
+    const scriptMods = addScript(func, props, options);
 
     return scriptMods;
   });
@@ -112,16 +170,17 @@ export const useClientSideScript = (
 };
 
 type LeatProps = {
-  children: (hydrationProps: ScriptUpdater) => React.ReactNode;
-  script: (props: Record<string, any> & { element: HTMLElement }) => void;
-  props?: Record<string, any>;
-};
+  children: React.ReactNode | ((script: Script) => React.ReactNode);
+  script: Function;
+  props?: ScriptProps;
+} & ScriptOptions;
 
-export const Leat = ({ children, script, props = {} }: LeatProps) => {
-  const scriptUpdater = useClientSideScript(script, {
-    ...props,
-  });
+export const Leat = ({ children, script, props, ...options }: LeatProps) => {
+  const scriptUpdater = useClientSideScript(script, props, options);
 
   if (!children) return;
-  return children(scriptUpdater);
+  if (typeof children === 'function') {
+    return children(scriptUpdater);
+  }
+  return children;
 };
