@@ -129,7 +129,6 @@ export class ServerScriptRenderer {
 
       scriptProps['getRef'] = `(refName) =>
         document.querySelector('[${LEAT_SELECTOR}-${i}="'+refName+'"]')`;
-      scriptProps['isHydrated'] = `() => window.__leat?.hydrated[${i}]`;
 
       const encodedProps = this.encodeProps(scriptProps, addExtractedScript);
       const scriptString = script.func.toString().trim();
