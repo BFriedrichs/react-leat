@@ -197,6 +197,7 @@ const index = `<html>
 | Options          | Type      | Description |
 | :-------------- | :-------- | :-- |
 | `minify` default=true | `boolean` | Minify scripts using [UglifyJS](https://www.npmjs.com/package/uglify-js). |
+| `skipVerify` default=false | `boolean` | Skip the scope verification step. |
 
 <br />
 

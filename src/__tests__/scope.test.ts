@@ -75,12 +75,26 @@ describe('verify scope', () => {
     expect(gatherScope(testFunction).hasReturn).toBe(true);
   });
 
-  // test('test', () => {
-  //   const y = 1;
-  //   const testFunction = () => {
-  //     const x = () => 1 + 2 + y;
-  //   };
+  test('allow variables in function', () => {
+    const testFunction = () => {
+      const x = (d: any) => {
+        d;
+      };
+    };
 
-  //   expect(gatherScope(testFunction).hasReturn).toBe(true);
-  // });
+    expect(() => verify(testFunction)).not.toThrowError();
+  });
+
+  test('allow variables in callback', () => {
+    const testFunction = () => {
+      const a = {
+        cb: (a: string, cb: (e: string) => void) => null,
+      };
+      a.cb('test', (e) => {
+        e;
+      });
+    };
+
+    expect(() => verify(testFunction)).not.toThrowError();
+  });
 });

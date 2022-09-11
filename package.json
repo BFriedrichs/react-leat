@@ -1,7 +1,7 @@
 {
   "name": "react-leat",
   "author": "Björn Friedrichs",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "source": "src/main.ts",
   "main": "dist/main.js",

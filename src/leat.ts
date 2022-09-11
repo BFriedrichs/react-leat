@@ -18,6 +18,7 @@ let context: React.Context<LeatContextType> | null = null;
 
 type ServerOptions = {
   minify: boolean;
+  skipVerify: boolean;
 };
 export class ServerScriptRenderer {
   private options: ServerOptions;
@@ -26,6 +27,7 @@ export class ServerScriptRenderer {
   constructor(propOptions: Partial<ServerOptions> = {}) {
     this.options = {
       minify: true,
+      skipVerify: false,
       ...propOptions,
     };
     this.scripts = [];
@@ -72,6 +74,9 @@ export class ServerScriptRenderer {
     props: ScriptProps = {},
     options: Partial<ScriptOptions> = {}
   ) {
+    if (!this.options.skipVerify) {
+      verify(func);
+    }
     const currentIndex = this.scripts.length;
     const script = new Script(currentIndex, func, props, options);
     this.scripts.push(script);
@@ -157,7 +162,6 @@ export const useClientSideScript = (
     nonContextScripts.push(script);
     return script;
   }
-  verify(func);
 
   const { addScript } = React.useContext(context);
   const [scriptMods] = useState(() => {
