@@ -16,10 +16,22 @@ type LeatContextType = {
 
 let context: React.Context<LeatContextType> | null = null;
 
+type RenderableReactElement = React.ReactElement<
+  any,
+  string | React.JSXElementConstructor<any>
+>;
+
 type ServerOptions = {
   minify: boolean;
   skipVerify: boolean;
+  renderToString: (component: RenderableReactElement) => string;
 };
+
+const defaultRenderToString = (component: RenderableReactElement) => {
+  const rendered = ReactDOM.renderToString(component);
+  return rendered;
+};
+
 export class ServerScriptRenderer {
   private options: ServerOptions;
   private scripts: Script[];
@@ -28,8 +40,10 @@ export class ServerScriptRenderer {
     this.options = {
       minify: true,
       skipVerify: false,
+      renderToString: defaultRenderToString,
       ...propOptions,
     };
+
     this.scripts = [];
     this.addScript = this.addScript.bind(this);
     this.encodeProps = this.encodeProps.bind(this);
@@ -45,11 +59,8 @@ export class ServerScriptRenderer {
 
     if (data.$$typeof && data.$$typeof.toString() === 'Symbol(react.element)') {
       const leat = new ServerScriptRenderer(this.options);
-      const rendered = ReactDOM.renderToString(
-        leat.collectScripts(data) as React.ReactElement<
-          any,
-          string | React.JSXElementConstructor<any>
-        >
+      const rendered = this.options.renderToString(
+        leat.collectScripts(data) as RenderableReactElement
       );
       const innerScript = leat.getScripts();
       if (innerScript.length > 0) {
